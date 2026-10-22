@@ -78,7 +78,7 @@ def prepare_calibration_input(model, dataloader, device, nsamples, offload_to_cp
         model.model.embed_tokens = model.model.embed_tokens.to(device)
         if hasattr(model.model, 'rotary_emb') and model.model.rotary_emb is not None:
             model.model.rotary_emb = model.model.rotary_emb.to(device)
-    elif "model.embed_tokens" in model.hf_device_map:
+    elif "model.embed_tokens" in getattr(model, "hf_device_map", {}):
         device = model.hf_device_map["model.embed_tokens"]
 
     dtype = next(iter(model.parameters())).dtype
@@ -186,7 +186,7 @@ def prune_mask(args, model, tokenizer, device, make_collector, prune_n=0, prune_
         if offload_to_cpu:
             dev = device
             layer.to(dev)
-        elif f"model.layers.{i}" in model.hf_device_map:
+        elif f"model.layers.{i}" in getattr(model, "hf_device_map", {}):
             dev = model.hf_device_map[f"model.layers.{i}"]
             inps, outs, attention_mask, position_ids, position_embeddings = move_calibration_state(
                 dev, inps, outs, attention_mask, position_ids, position_embeddings)
@@ -275,7 +275,7 @@ def prune_reconstruct(args, model, tokenizer, device, make_collector, prune_n=0,
         if offload_to_cpu:
             dev = device
             layer.to(dev)
-        elif f"model.layers.{i}" in model.hf_device_map:
+        elif f"model.layers.{i}" in getattr(model, "hf_device_map", {}):
             dev = model.hf_device_map[f"model.layers.{i}"]
             inps, outs, attention_mask, position_ids, position_embeddings = move_calibration_state(
                 dev, inps, outs, attention_mask, position_ids, position_embeddings)

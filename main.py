@@ -11,6 +11,7 @@ from lib.prune import (check_sparsity, prune_alps, prune_alps_whisper, prune_mag
                        prune_ria, prune_ria_wisp, prune_ria_wispplus, prune_sparsegpt,
                        prune_wanda, prune_whisper, prune_wisp, prune_wispplus)
 from lib.eval import eval_ppl, run_evals
+from sae.prune import prune_sae_sparsegpt
 
 # Layers pruned with general activation baselines by default.
 # Difference-informed criteria applied only to remaining layers:
@@ -23,7 +24,8 @@ TESTING_ONLY_ARGS = ["n_pairs", "gamma", "top_frac", "ria_a", "starts_with",
                      "baseline_fallback", "alps_rho", "alps_max_iter", "true_sequential"]
 
 IMPLEMENTED_METHODS = ["magnitude", "wanda", "ria", "wisp", "wispplus", "ria-wisp",
-                       "ria-wispplus", "sparsegpt", "whisper", "alps", "alps-whisper"]
+                       "ria-wispplus", "sparsegpt", "whisper", "alps", "alps-whisper",
+                       "sae-sparsegpt"]
 
 print('torch', version('torch'))
 print('transformers', version('transformers'))
@@ -70,6 +72,7 @@ def main():
     parser.add_argument("--save_eval", type=str, default=None, help="Path to save evaluation results.")
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
     parser.add_argument('--offload_to_cpu', action="store_true", help="Load model on CPU and offload layers to GPU one at a time during pruning. Use for large models that don't fit in GPU memory.")
+    parser.add_argument('--sae_path', type=str, default=None, help='Directory of per-layer SAEs (layers.{i}) trained on the MLP input. Required for sae-sparsegpt.')
     parser.add_argument("--eval", type=str, nargs='+', default=None, help="List of evaluation tasks")
     parser.add_argument("--num_fewshot", type=int, nargs='+', default=None, help="Number of few-shot examples for each eval task (must match length of --eval)")
     parser.add_argument("--eval_llm_leaderboard_v1", action="store_true", help="Evaluate on Open LLM Leaderboard v1 tasks (arc_challenge 25-shot, hellaswag 10-shot, mmlu 5-shot, truthfulqa_mc 0-shot, winogrande 5-shot, mathqa 0-shot; mathqa replaces the suite's gsm8k, which generally performs poorly across methods)")
@@ -95,6 +98,8 @@ def main():
             parser.error(f"{', '.join('--' + dest for dest in offenders)} {verb} --testing")
         if args.pairing == "knn":
             parser.error("--pairing knn requires --testing")
+    if args.prune_method == "sae-sparsegpt" and args.sae_path is None:
+        parser.error("--prune_method sae-sparsegpt requires --sae_path")
 
     np.random.seed(args.seed)
     torch.random.manual_seed(args.seed)
@@ -176,6 +181,12 @@ def main():
                                starts_with=args.starts_with, true_sequential=args.true_sequential,
                                baseline_fallback=args.baseline_fallback,
                                offload_to_cpu=args.offload_to_cpu)
+        elif args.prune_method == "sae-sparsegpt":
+            prune_sae_sparsegpt(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
+                                sae_path=args.sae_path, starts_with=args.starts_with,
+                                true_sequential=args.true_sequential,
+                                baseline_fallback=args.baseline_fallback,
+                                offload_to_cpu=args.offload_to_cpu)
     else:
         print("sparsity_ratio is 0, skipping pruning and evaluating the dense model")
 
